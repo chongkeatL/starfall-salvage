@@ -29,3 +29,4 @@ Open-source 2D Canvas browser shooter. Vanilla JS ES modules, HTML/CSS, no frame
 - Never merge a PR, create a tag, or publish a release. A human does that.
 - Never put secrets, tokens, or personal data in files, commits, or logs.
 - Do not weaken or delete a test just to make it pass.
+- Never rebase a branch that has been pushed; merge main into it instead.
