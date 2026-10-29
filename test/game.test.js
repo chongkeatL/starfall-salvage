@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createGame, update, restart } from '../src/game.js';
 import { CONFIG } from '../src/entities.js';
+import { hashState } from '../scripts/stress-test.js';
 
 const SEED = 12345;
 const DT = CONFIG.DT;
@@ -193,4 +194,70 @@ test('same seed and inputs replay to an identical state', () => {
     return state;
   };
   assert.deepEqual(run(), run());
+});
+
+test('diagonal movement is not faster than axis movement', () => {
+  const axis = playingGame();
+  const diagonal = playingGame();
+  const from = { x: axis.player.x, y: axis.player.y };
+  for (let i = 0; i < 10; i++) {
+    tick(axis, { moveX: 1 });
+    tick(diagonal, { moveX: 1, moveY: -1 });
+  }
+  const axisDist = Math.hypot(axis.player.x - from.x, axis.player.y - from.y);
+  const diagDist = Math.hypot(diagonal.player.x - from.x, diagonal.player.y - from.y);
+  assert.ok(axisDist > 0);
+  assert.ok(Math.abs(axisDist - diagDist) < 1e-9, `axis ${axisDist} vs diagonal ${diagDist}`);
+  assert.ok(Math.abs(Math.hypot(diagonal.player.vx, diagonal.player.vy) - CONFIG.player.speed) < 1e-9);
+});
+
+test('over-range and invalid movement input never exceeds top speed', () => {
+  const inputs = [{ moveX: 5, moveY: 5 }, { moveX: -9, moveY: 3 }, { moveX: NaN, moveY: 1 }, { moveX: Infinity, moveY: -Infinity }];
+  for (const input of inputs) {
+    const state = playingGame();
+    tick(state, input);
+    const speed = Math.hypot(state.player.vx, state.player.vy);
+    assert.ok(speed <= CONFIG.player.speed + 1e-9, `${JSON.stringify(input)} gave ${speed}`);
+  }
+});
+
+function replay(state, ticks = 600) {
+  const log = [];
+  log.push(...tick(state, { start: true }));
+  for (let i = 0; i < ticks; i++) {
+    log.push(...tick(state, { moveX: Math.sin(i / 20), moveY: Math.cos(i / 35), fire: i % 3 !== 0 }));
+  }
+  return log;
+}
+
+test('replay yields identical event streams and hashes', () => {
+  const a = createGame({ seed: SEED });
+  const b = createGame({ seed: SEED });
+  assert.deepEqual(replay(a), replay(b));
+  assert.equal(hashState(a), hashState(b));
+});
+
+test('a different seed diverges', () => {
+  const a = createGame({ seed: SEED });
+  const b = createGame({ seed: SEED + 1 });
+  replay(a);
+  replay(b);
+  assert.notEqual(hashState(a), hashState(b));
+});
+
+test('an in-place restart replays like a fresh game', () => {
+  const reused = createGame({ seed: SEED });
+  replay(reused, 200);
+  restart(reused);
+  const fresh = createGame({ seed: SEED });
+  assert.deepEqual(replay(reused), replay(fresh));
+  assert.equal(hashState(reused), hashState(fresh));
+});
+
+// Golden value: a characterization of the engine at the time this test was written.
+// An engine rule change that moves it must say why in the PR.
+test('snapshot hash of a fixed seeded run', () => {
+  const state = createGame({ seed: SEED });
+  replay(state);
+  assert.equal(hashState(state), '585a4117a3eed22b0fd122cbdfc9bc3a75b12ba6cd40032386ca08bb7cb160d9');
 });
