@@ -1,0 +1,50 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24]
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ matrix.node }}
+          package-manager-cache: false
+
+      # Also runs scripts/stress-test.js with default arguments (node --test discovers *-test.js).
+      - name: Unit tests
+        run: npm test
+
+      - name: Stress run
+        run: npm run stress -- --seed 12345 --ticks 5000
+
+      - name: Same seed gives the same hash
+        run: |
+          first=$(npm run --silent stress -- --seed 12345 --ticks 5000 | grep '^hash=')
+          second=$(npm run --silent stress -- --seed 12345 --ticks 5000 | grep '^hash=')
+          echo "first:  $first"
+          echo "second: $second"
+          [ -n "$first" ] && [ "$first" = "$second" ]
+
+      # grep exits 0 on a match (fail), 1 on no match (pass), 2+ on error (fail, so a
+      # missing directory cannot make the guard pass by accident).
+      - name: No Math.random in src, test or scripts
+        run: |
+          set +e
+          grep -rnE 'Math\.random' src test scripts
+          rc=$?
+          if [ "$rc" -eq 0 ]; then echo "Math.random found"; exit 1; fi
+          if [ "$rc" -ge 2 ]; then echo "guard grep failed with $rc"; exit 1; fi
+          echo "no matches"

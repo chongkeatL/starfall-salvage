@@ -11,7 +11,7 @@ export const CONFIG = Object.freeze({
     fireCooldown: 0.2,
     spawn: Object.freeze({ x: 0.5, y: 0.8 }), // fractions of the world
   }),
-  bullet: Object.freeze({ speed: 600, radius: 3, ttl: 1.2, damage: 1 }),
+  bullet: Object.freeze({ speed: 600, radius: 3, ttl: 1.2, damage: 1, maxAlive: 6 }), // derived bound, asserted by stress, not enforced by the engine
   asteroid: Object.freeze({
     radiusPerSize: 12,
     hpPerSize: 1,
